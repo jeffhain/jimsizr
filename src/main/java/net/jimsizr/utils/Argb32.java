@@ -53,6 +53,20 @@ public class Argb32 {
     /*
      * 
      */
+    
+    /**
+     * @param argb32 A 32 bits ARGB color.
+     * @return True if the specified color is opaque,
+     *         i.e. if its alpha component is 0xFF.
+     */
+    public static boolean isOpaque(int argb32) {
+        final int alpha8 = getAlpha8(argb32);
+        return (alpha8 == 0xFF);
+    }
+    
+    /*
+     * 
+     */
 
     /**
      * @param argb32 A 32 bits ARGB color.
