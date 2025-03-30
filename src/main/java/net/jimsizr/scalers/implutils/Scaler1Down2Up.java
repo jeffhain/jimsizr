@@ -79,19 +79,17 @@ public class Scaler1Down2Up implements InterfaceScaler {
              * First shrinking with scaler1,
              * then growing with scaler2.
              */
-            final BufferedImage tmpImage =
-                new BufferedImage(
+            final BufferedImageHelper tmpHelper =
+                JisImplUtils.newHelperAndImage(
                     (wDown ? dw : sw),
                     (hDown ? dh : sh),
                     BufferedImage.TYPE_INT_ARGB_PRE);
-            final BufferedImageHelper tmpImageHelper =
-                new BufferedImageHelper(tmpImage);
             this.scaler1.scaleImage(
                 srcHelper,
-                tmpImageHelper,
+                tmpHelper,
                 parallelExecutor);
             this.scaler2.scaleImage(
-                tmpImageHelper,
+                tmpHelper,
                 dstHelper,
                 parallelExecutor);
         } else {

@@ -19,6 +19,7 @@ import java.awt.image.BufferedImage;
 import java.util.concurrent.Executor;
 
 import net.jimsizr.scalers.api.InterfaceScaler;
+import net.jimsizr.scalers.implutils.JisImplUtils;
 import net.jimsizr.scalers.smart.copy.ScalerCopySmart;
 import net.jimsizr.types.AlgoBrand;
 import net.jimsizr.types.InterKind;
@@ -172,13 +173,10 @@ public class SmartResizeScaler implements InterfaceScaler {
         if (interKind == InterKind.NONE) {
             ret = helper;
         } else {
-            final BufferedImage imageForResize =
-                new BufferedImage(
-                    helper.getWidth(),
-                    helper.getHeight(),
-                    interKind.getImageType());
-            ret = new BufferedImageHelper(
-                imageForResize);
+            ret = JisImplUtils.newHelperAndImage(
+                helper.getWidth(),
+                helper.getHeight(),
+                interKind.getImageType());
         }
         return ret;
     }

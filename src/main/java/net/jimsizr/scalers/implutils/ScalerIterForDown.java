@@ -117,13 +117,11 @@ public class ScalerIterForDown implements InterfaceScaler {
              * images, because the third one should be relatively small
              * already (at most 1/8th of source image).
              */
-            final BufferedImage tmpDstImage =
-                new BufferedImage(
+            final BufferedImageHelper tmpDstHelper =
+                JisImplUtils.newHelperAndImage(
                     tmpDw,
                     tmpDh,
                     BufferedImage.TYPE_INT_ARGB_PRE);
-            final BufferedImageHelper tmpDstHelper =
-                new BufferedImageHelper(tmpDstImage);
             
             this.scaler.scaleImage(
                 tmpSrcHelper,

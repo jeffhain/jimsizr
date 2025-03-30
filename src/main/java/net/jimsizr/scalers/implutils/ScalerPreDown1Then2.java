@@ -141,18 +141,16 @@ public class ScalerPreDown1Then2 implements InterfaceScaler {
                     parallelExecutor);
                 finalSrcHelper = null;
             } else {
-                final BufferedImage tmpImage =
-                    new BufferedImage(
+                final BufferedImageHelper tmpHelper =
+                    JisImplUtils.newHelperAndImage(
                         interWidth,
                         interHeight,
                         BufferedImage.TYPE_INT_ARGB_PRE);
-                final BufferedImageHelper tmpImageHelper =
-                    new BufferedImageHelper(tmpImage);
                 this.scaler1.scaleImage(
                     srcHelper,
-                    tmpImageHelper,
+                    tmpHelper,
                     parallelExecutor);
-                finalSrcHelper = tmpImageHelper;
+                finalSrcHelper = tmpHelper;
             }
         } else {
             finalSrcHelper = srcHelper;
