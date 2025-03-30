@@ -82,7 +82,7 @@ public class ScalerBilinearJis extends AbstractParallelScaler {
     }
     
     @Override
-    protected void scaleImagePart(
+    protected void scaleImageChunk(
         BufferedImageHelper srcHelper,
         //
         int dstYStart,

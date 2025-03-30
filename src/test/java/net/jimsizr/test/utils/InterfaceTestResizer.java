@@ -35,11 +35,6 @@ public interface InterfaceTestResizer {
     public boolean isCopy();
     
     /**
-     * @return True if is or could be iterative.
-     */
-    public boolean isIterative();
-    
-    /**
      * @return True if can benefit from a parallelExecutor.
      */
     public boolean isParallelCapable();

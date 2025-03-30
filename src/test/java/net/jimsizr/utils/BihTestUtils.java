@@ -37,7 +37,7 @@ public class BihTestUtils {
     // CONFIGURATION
     //--------------------------------------------------------------------------
     
-    private static final boolean MUST_PRINT_IMAGE_ON_ERROR = false;
+    public static final boolean MUST_PRINT_IMAGE_ON_ERROR = false;
 
     //--------------------------------------------------------------------------
     // CONSTRUCTORS
@@ -406,10 +406,6 @@ public class BihTestUtils {
      * 
      */
     
-    public static int uniform(Random random, int min, int max) {
-        return min + random.nextInt(max - min + 1);
-    }
-    
     /**
      * Half chance of returning zero.
      * Helps to test X and Y non-zero issues separately.
@@ -540,38 +536,6 @@ public class BihTestUtils {
      * 
      */
     
-    public static void fillArrayWithPixel(
-        int[] color32Arr,
-        int scanlineStride,
-        //
-        int x,
-        int y,
-        int width,
-        int height,
-        //
-        int pixel) {
-        
-        for (int j = 0; j < height; j++) {
-            final int py = y + j;
-            for (int i = 0; i < width; i++) {
-                final int px = x + i;
-                final int index = py * scanlineStride + px;
-                color32Arr[index] = pixel;
-            }
-        }
-    }
-    
-    public static void fillImageWithNonPremulArgb32(
-        BufferedImage image,
-        int nonPremulArgb32) {
-        
-        final BufferedImageHelper helper =
-            new BufferedImageHelper(image);
-        fillHelperWithNonPremulArgb32(
-            helper,
-            nonPremulArgb32);
-    }
-    
     public static void fillHelperWithNonPremulArgb32(
         BufferedImageHelper helper,
         int nonPremulArgb32) {
@@ -647,6 +611,13 @@ public class BihTestUtils {
      * 
      */
     
+    public static int getBinaryCpt8Delta(
+        int area,
+        int diffCount) {
+        final double ratioDelta = diffCount / (double) area;
+        return (int) (ratioDelta * 0xFF + 0.5);
+    }
+    
     public static int getMaxCptDelta(
         int expectedColor32,
         int actualColor32) {
@@ -668,7 +639,6 @@ public class BihTestUtils {
     /*
      * 
      */
-    
     
     /**
      * Trivial implementation, based on single-pixel methods,
@@ -792,35 +762,6 @@ public class BihTestUtils {
             System.out.println("actualColor32 =   " + actualStr);
             throw new AssertionError(expectedStr + " != " + actualStr);
         }
-    }
-    
-    /**
-     * If actual image is of type TYPE_BYTE_BINARY,
-     * to avoid fails due to edge cases around threshold,
-     * computes the ratio of white pixels of both images,
-     * and converts it into a 8-bits component as if it was
-     * a floating-point color in [0,1].
-     * That works as long as the image is not too small.
-     */
-    public static int computeMaxCptDelta(
-        BufferedImageHelper expectedDstHelper,
-        BufferedImageHelper actualDstHelper,
-        int neighborDelta) {
-        
-        final int ret;
-        if (expectedDstHelper.getImageType() == BufferedImage.TYPE_BYTE_BINARY) {
-            ret = computeMaxCptDelta_binary(
-                expectedDstHelper,
-                actualDstHelper,
-                neighborDelta);
-        } else {
-            ret = computeMaxCptDelta_notBinary(
-                expectedDstHelper,
-                actualDstHelper,
-                neighborDelta);
-        }
-        
-        return ret;
     }
     
     public static void checkImageResult(
@@ -1003,125 +944,6 @@ public class BihTestUtils {
         } else {
             return new boolean[] {false};
         }
-    }
-    
-    /*
-     * 
-     */
-    
-    private static int getBinaryCpt8Delta(
-        int area,
-        int diffCount) {
-        final double ratioDelta = diffCount / (double) area;
-        return (int) (ratioDelta * 0xFF + 0.5);
-    }
-    
-    private static int computeMaxCptDelta_binary(
-        BufferedImageHelper expectedDstHelper,
-        BufferedImageHelper actualDstHelper,
-        int neighborDelta) {
-        
-        if ((expectedDstHelper.getImageType() != BufferedImage.TYPE_BYTE_BINARY)
-            || (actualDstHelper.getImageType() != BufferedImage.TYPE_BYTE_BINARY)) {
-            throw new IllegalArgumentException();
-        }
-        
-        final int w = expectedDstHelper.getWidth();
-        final int h = expectedDstHelper.getHeight();
-        
-        int diffCount = 0;
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                final int actualArgb32 =
-                    actualDstHelper.getNonPremulArgb32At(x, y);
-                final int minNearbyDelta =
-                    getMinNearbyMaxCptDelta(
-                        x,
-                        y,
-                        actualArgb32,
-                        expectedDstHelper,
-                        neighborDelta);
-                if (minNearbyDelta != 0) {
-                    diffCount++;
-                }
-            }
-        }
-        
-        final int area = w * h;
-        return getBinaryCpt8Delta(
-            area,
-            diffCount);
-    }
-    
-    private static int computeMaxCptDelta_notBinary(
-        BufferedImageHelper expectedDstHelper,
-        BufferedImageHelper actualDstHelper,
-        int neighborDelta) {
-        
-        int ret = 0;
-        
-        final int w = expectedDstHelper.getWidth();
-        final int h = expectedDstHelper.getHeight();
-        
-        L1 : for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                final int actualArgb32 =
-                    actualDstHelper.getNonPremulArgb32At(x, y);
-                final int minNearbyDelta =
-                    getMinNearbyMaxCptDelta(
-                        x,
-                        y,
-                        actualArgb32,
-                        expectedDstHelper,
-                        neighborDelta);
-                ret = Math.max(ret, minNearbyDelta);
-                if (ret == 0xFF) {
-                    // Can't be worse.
-                    break L1;
-                }
-            }
-        }
-        
-        return ret;
-    }
-    
-    /**
-     * Computes minOnPixels(maxForPixelOnCpts()).
-     * 
-     * @return The min, on each compared pixel, of the max delta
-     *         between each component.
-     */
-    private static int getMinNearbyMaxCptDelta(
-        int x,
-        int y,
-        int actualDstArgb32,
-        BufferedImageHelper expectedDstHelper,
-        int neighborDelta) {
-        
-        final int w = expectedDstHelper.getWidth();
-        final int h = expectedDstHelper.getHeight();
-        
-        int minNearbyDelta = Integer.MAX_VALUE;
-        L1 : for (int j = -neighborDelta; j <= neighborDelta; j++) {
-            final int yy = JisUtils.toRange(0, h-1, y + j);
-            for (int i = -neighborDelta; i <= neighborDelta; i++) {
-                final int xx = JisUtils.toRange(0, w-1, x + i);
-                final int expectedArgb32 =
-                    expectedDstHelper.getNonPremulArgb32At(xx, yy);
-                final int pixelMaxCptDelta =
-                    getMaxCptDelta(
-                        expectedArgb32,
-                        actualDstArgb32);
-                minNearbyDelta = Math.min(
-                    minNearbyDelta,
-                    pixelMaxCptDelta);
-                if (minNearbyDelta == 0) {
-                    break L1;
-                }
-            }
-        }
-        
-        return minNearbyDelta;
     }
     
     /*

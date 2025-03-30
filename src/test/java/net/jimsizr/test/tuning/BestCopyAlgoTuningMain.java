@@ -393,7 +393,7 @@ public class BestCopyAlgoTuningMain extends BaseBestAlgoTuning {
                     {
                         final int neighborDelta = 0;
                         final int maxCptDelta =
-                            BihTestUtils.computeMaxCptDelta(
+                            JisTestUtils.computeMaxCptDelta(
                                 expHelper,
                                 dstHelper,
                                 neighborDelta);

@@ -40,6 +40,11 @@ public class BaseScalerAwt extends AbstractParallelScaler {
     // FIELDS
     //--------------------------------------------------------------------------
     
+    /**
+     * No need since we only use images.
+     */
+    private static final boolean MUST_DUPLICATE_HELPERS_FOR_CHUNKS = false;
+    
     private final Object renderingHint;
     
     private final int dstAreaThresholdForSplit;
@@ -54,6 +59,7 @@ public class BaseScalerAwt extends AbstractParallelScaler {
     public BaseScalerAwt(
         Object renderingHint,
         int dstAreaThresholdForSplit) {
+        super(MUST_DUPLICATE_HELPERS_FOR_CHUNKS);
         this.renderingHint = renderingHint;
         this.dstAreaThresholdForSplit =
             JisUtils.requireSupOrEq(2, dstAreaThresholdForSplit, "dstAreaThresholdForSplit");
@@ -85,7 +91,7 @@ public class BaseScalerAwt extends AbstractParallelScaler {
     }
 
     @Override
-    protected void scaleImagePart(
+    protected void scaleImageChunk(
         BufferedImageHelper srcHelper,
         //
         int dstYStart,
@@ -104,15 +110,15 @@ public class BaseScalerAwt extends AbstractParallelScaler {
         // which seems to work.
         final Graphics2D g = this.createGraphicsForScaling(dstImage);
         try {
-            if ((dstYStart != 0)
-                || (dstYEnd != dh - 1)) {
+            final int chunkHeight = dstYEnd - dstYStart + 1;
+            if (chunkHeight < dh) {
                 // This clip is what allows parallel work chunks
                 // not to step on each other's toes.
                 g.setClip(
                     0,
                     dstYStart,
                     dw,
-                    (dstYEnd - dstYStart + 1));
+                    chunkHeight);
             }
             
             final ImageObserver observer = null;
@@ -135,9 +141,9 @@ public class BaseScalerAwt extends AbstractParallelScaler {
     private Graphics2D createGraphicsForScaling(BufferedImage image) {
         final Graphics2D g = image.createGraphics();
         /*
-         * In case source has alpha.
-         * Always works, because even though we might use clips,
-         * (srcX,srcY) is always (0,0).
+         * Only reliable if no more than two
+         * of (srcX,srcY,dstX,dstY) are zero,
+         * which is always the case here.
          */
         g.setComposite(AlphaComposite.Src);
         /*

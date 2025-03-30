@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.imageio.ImageIO;
 
-import net.jimsizr.scalers.implutils.AbstractParallelScaler;
 import net.jimsizr.utils.Argb32;
 import net.jimsizr.utils.BihTestUtils;
 import net.jimsizr.utils.BufferedImageHelper;
@@ -54,7 +53,7 @@ public class JisTestUtils {
         public Thread newThread(Runnable runnable) {
             final int threadNum = THREAD_NUM_PROVIDER.incrementAndGet();
             final String threadName =
-                AbstractParallelScaler.class.getClass().getSimpleName()
+                JisTestUtils.class.getClass().getSimpleName()
                 + "-PRL-"
                 + threadNum;
             
@@ -68,15 +67,6 @@ public class JisTestUtils {
     //--------------------------------------------------------------------------
     // FIELDS
     //--------------------------------------------------------------------------
-    
-    public static final int DEFAULT_PARALLELISM =
-        Runtime.getRuntime().availableProcessors();
-    public static final Executor DEFAULT_TPE =
-        newPrlExec(DEFAULT_PARALLELISM);
-    
-    /*
-     * 
-     */
     
     private static final double NO_CSN_MIN_BOUND_INCL = 1e-3;
     private static final double NO_CSN_MAX_BOUND_EXCL = 1e7;
@@ -245,6 +235,35 @@ public class JisTestUtils {
         final int g8 = Argb32.getGreen8(premulArgb32);
         final int b8 = Argb32.getBlue8(premulArgb32);
         JisColorUtils.checkValidPremulAxyz(a8, r8, g8, b8);
+    }
+    
+    /**
+     * If actual image is of type TYPE_BYTE_BINARY,
+     * to avoid fails due to edge cases around threshold,
+     * computes the ratio of white pixels of both images,
+     * and converts it into a 8-bits component as if it was
+     * a floating-point color in [0,1].
+     * That works as long as the image is not too small.
+     */
+    public static int computeMaxCptDelta(
+        BufferedImageHelper expectedDstHelper,
+        BufferedImageHelper actualDstHelper,
+        int neighborDelta) {
+        
+        final int ret;
+        if (expectedDstHelper.getImageType() == BufferedImage.TYPE_BYTE_BINARY) {
+            ret = computeMaxCptDelta_binary(
+                expectedDstHelper,
+                actualDstHelper,
+                neighborDelta);
+        } else {
+            ret = computeMaxCptDelta_notBinary(
+                expectedDstHelper,
+                actualDstHelper,
+                neighborDelta);
+        }
+        
+        return ret;
     }
     
     /*
@@ -472,5 +491,117 @@ public class JisTestUtils {
         b8 = JisUtils.toRange(0, 0xFF, b8);
         
         return JisColorUtils.toAbcd32_noCheck(a8, r8, g8, b8);
+    }
+    
+    /*
+     * 
+     */
+    
+    private static int computeMaxCptDelta_binary(
+        BufferedImageHelper expectedDstHelper,
+        BufferedImageHelper actualDstHelper,
+        int neighborDelta) {
+        
+        if ((expectedDstHelper.getImageType() != BufferedImage.TYPE_BYTE_BINARY)
+            || (actualDstHelper.getImageType() != BufferedImage.TYPE_BYTE_BINARY)) {
+            throw new IllegalArgumentException();
+        }
+        
+        final int w = expectedDstHelper.getWidth();
+        final int h = expectedDstHelper.getHeight();
+        
+        int diffCount = 0;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                final int actualArgb32 =
+                    actualDstHelper.getNonPremulArgb32At(x, y);
+                final int minNearbyDelta =
+                    getMinNearbyMaxCptDelta(
+                        x,
+                        y,
+                        actualArgb32,
+                        expectedDstHelper,
+                        neighborDelta);
+                if (minNearbyDelta != 0) {
+                    diffCount++;
+                }
+            }
+        }
+        
+        final int area = w * h;
+        return BihTestUtils.getBinaryCpt8Delta(
+            area,
+            diffCount);
+    }
+    
+    private static int computeMaxCptDelta_notBinary(
+        BufferedImageHelper expectedDstHelper,
+        BufferedImageHelper actualDstHelper,
+        int neighborDelta) {
+        
+        int ret = 0;
+        
+        final int w = expectedDstHelper.getWidth();
+        final int h = expectedDstHelper.getHeight();
+        
+        L1 : for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                final int actualArgb32 =
+                    actualDstHelper.getNonPremulArgb32At(x, y);
+                final int minNearbyDelta =
+                    getMinNearbyMaxCptDelta(
+                        x,
+                        y,
+                        actualArgb32,
+                        expectedDstHelper,
+                        neighborDelta);
+                ret = Math.max(ret, minNearbyDelta);
+                if (ret == 0xFF) {
+                    // Can't be worse.
+                    break L1;
+                }
+            }
+        }
+        
+        return ret;
+    }
+    
+    /**
+     * Computes minOnPixels(maxForPixelOnCpts()).
+     * 
+     * @return The min, on each compared pixel, of the max delta
+     *         between each component.
+     */
+    private static int getMinNearbyMaxCptDelta(
+        int x,
+        int y,
+        int actualDstArgb32,
+        BufferedImageHelper expectedDstHelper,
+        int neighborDelta) {
+        
+        final int w = expectedDstHelper.getWidth();
+        final int h = expectedDstHelper.getHeight();
+        
+        int minNearbyDelta = Integer.MAX_VALUE;
+        L1 : for (int j = -neighborDelta; j <= neighborDelta; j++) {
+            final int yy = JisUtils.toRange(0, h-1, y + j);
+            for (int i = -neighborDelta; i <= neighborDelta; i++) {
+                final int xx = JisUtils.toRange(0, w-1, x + i);
+                final int expectedArgb32 =
+                    expectedDstHelper.getNonPremulArgb32At(xx, yy);
+                final int pixelMaxCptDelta =
+                    BihTestUtils.getMaxCptDelta(
+                        expectedArgb32,
+                        actualDstArgb32);
+                minNearbyDelta = Math.min(
+                    minNearbyDelta,
+                    pixelMaxCptDelta);
+                if (minNearbyDelta == 0) {
+                    break L1;
+                }
+            }
+        }
+        
+        return minNearbyDelta;
     }
 }

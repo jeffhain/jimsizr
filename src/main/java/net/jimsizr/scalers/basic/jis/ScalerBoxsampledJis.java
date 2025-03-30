@@ -115,7 +115,7 @@ public class ScalerBoxsampledJis extends AbstractParallelScaler {
     }
     
     @Override
-    protected void scaleImagePart(
+    protected void scaleImageChunk(
         BufferedImageHelper srcHelper,
         //
         int dstYStart,
@@ -133,14 +133,14 @@ public class ScalerBoxsampledJis extends AbstractParallelScaler {
         final int dh = dstImage.getHeight();
         
         if (isAlignedShrinking(sw, sh, dw, dh)) {
-            scaleImagePart_boxsampled_alignedShrinking(
+            scaleImageChunk_boxsampled_alignedShrinking(
                 srcHelper,
                 //
                 dstYStart,
                 dstYEnd,
                 dstHelper);
         } else {
-            scaleImagePart_boxsampled_general(
+            scaleImageChunk_boxsampled_general(
                 srcHelper,
                 //
                 dstYStart,
@@ -192,7 +192,7 @@ public class ScalerBoxsampledJis extends AbstractParallelScaler {
         if (dstPixelSurfInSrcInv == Double.POSITIVE_INFINITY) {
             /*
              * Tiny surface.
-             * Can't happen due to pixel spans, whih are never tiny enough,
+             * Can't happen due to pixel spans, which are never tiny enough,
              * but due to center being out of clip (if we add clipping).
              */
             final int srcX = JisUtils.toRange(0, sw - 1,
@@ -341,7 +341,7 @@ public class ScalerBoxsampledJis extends AbstractParallelScaler {
      * Rectangles emptiness checks are supposed already done
      * (must not be a public method).
      */
-    private static void scaleImagePart_boxsampled_alignedShrinking(
+    private static void scaleImageChunk_boxsampled_alignedShrinking(
         BufferedImageHelper srcHelper,
         //
         int dstYStart,
@@ -428,7 +428,7 @@ public class ScalerBoxsampledJis extends AbstractParallelScaler {
      * Rectangles emptiness checks are supposed already done
      * (must not be a public method).
      */
-    private static void scaleImagePart_boxsampled_general(
+    private static void scaleImageChunk_boxsampled_general(
         BufferedImageHelper srcHelper,
         //
         int dstYStart,

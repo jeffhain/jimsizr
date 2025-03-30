@@ -30,12 +30,6 @@ public enum ScalingType {
     /**
      * Produces smooth but a bit blurry upscaling.
      * 
-     * For downscaling between 1 (no scaling)
-     * and 2 (spans divided by two), if the scaling
-     * is the same for both width and height,
-     * then it is equivalent to BOXSAMPLED,
-     * else it is less accurate.
-     * 
      * Does not take all source pixels into account
      * if downscaling divides spans by more than 2,
      * so you might want to use and iterative type

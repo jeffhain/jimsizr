@@ -67,9 +67,11 @@ public class ExtendedImageTypes {
      */
     private static final int MIN_EXTENDED_IMAGE_TYPE = EXTENDED_IMAGE_TYPE_SET.first();
     private static final int MAX_EXTENDED_IMAGE_TYPE = EXTENDED_IMAGE_TYPE_SET.last();
-    private static final int EXTENDED_IMAGE_TYPE_SPAN = (MAX_EXTENDED_IMAGE_TYPE - MIN_EXTENDED_IMAGE_TYPE + 1);
+    private static final int EXTENDED_IMAGE_TYPE_SPAN =
+        (MAX_EXTENDED_IMAGE_TYPE - MIN_EXTENDED_IMAGE_TYPE + 1);
     
-    public static final int EXTENDED_IMAGE_TYPE_INDEX_BIT_SIZE = JisTypesInternals.unsignedBitSize(EXTENDED_IMAGE_TYPE_SPAN - 1);
+    public static final int EXTENDED_IMAGE_TYPE_INDEX_BIT_SIZE =
+        JisTypesInternals.unsignedBitSize(EXTENDED_IMAGE_TYPE_SPAN - 1);
     
     //--------------------------------------------------------------------------
     // CONSTRUCTORS

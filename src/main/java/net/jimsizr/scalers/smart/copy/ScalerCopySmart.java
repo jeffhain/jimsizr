@@ -184,7 +184,7 @@ public class ScalerCopySmart extends AbstractParallelScaler {
     }
 
     @Override
-    protected void scaleImagePart(
+    protected void scaleImageChunk(
         BufferedImageHelper srcHelper,
         //
         int dstYStart,
@@ -200,7 +200,7 @@ public class ScalerCopySmart extends AbstractParallelScaler {
         @SuppressWarnings("unchecked")
         final List<Integer> preImageTypeList = (List<Integer>) brandAndPreArr[1];
         
-        this.copyImage_prlPart(
+        this.copyImage_prlChunk(
             srcHelper,
             dstHelper,
             //
@@ -215,7 +215,7 @@ public class ScalerCopySmart extends AbstractParallelScaler {
     // PRIVATE METHODS
     //--------------------------------------------------------------------------
     
-    private void copyImage_prlPart(
+    private void copyImage_prlChunk(
         BufferedImageHelper srcHelper,
         BufferedImageHelper dstHelper,
         //
@@ -254,7 +254,7 @@ public class ScalerCopySmart extends AbstractParallelScaler {
             for (int i = 0; i < sliceCount; i++) {
                 final int sliceHeight = Math.min(height - offset, sliceMaxHeight);
                 final int sliceYStart = yStart + offset;
-                copyImage_prlPart_slicedOrNot(
+                copyImage_prlChunk_slicedOrNot(
                     srcHelper,
                     dstHelper,
                     //
@@ -274,7 +274,7 @@ public class ScalerCopySmart extends AbstractParallelScaler {
                 }
             }
         } else {
-            copyImage_prlPart_slicedOrNot(
+            copyImage_prlChunk_slicedOrNot(
                 srcHelper,
                 dstHelper,
                 //
@@ -289,7 +289,7 @@ public class ScalerCopySmart extends AbstractParallelScaler {
         }
     }
     
-    private static void copyImage_prlPart_slicedOrNot(
+    private static void copyImage_prlChunk_slicedOrNot(
         BufferedImageHelper srcHelper,
         BufferedImageHelper dstHelper,
         //
@@ -313,7 +313,7 @@ public class ScalerCopySmart extends AbstractParallelScaler {
         
         /*
          * Preliminary copies, for whole image or just
-         * for one parallelized part, or just a slice of them
+         * for one parallelized chunk, or just a slice of them
          * (if having preliminary intermediary images):
          * drawing on temporary images.
          */
@@ -361,12 +361,12 @@ public class ScalerCopySmart extends AbstractParallelScaler {
         
         /*
          * Last (or single) copy, for whole image or just
-         * for one parallelized part, or just a slice of them
+         * for one parallelized chunk, or just a slice of them
          * (if having preliminary intermediary images):
          * using brand's algo and drawing on destination image.
          * 
          * Can't use InterfaceScaler API here,
-         * since we might be copying just a part or a slice.
+         * since we might be copying just a chunk or a slice.
          */
         
         if (algoBrand == AlgoBrand.AWT) {
@@ -420,16 +420,11 @@ public class ScalerCopySmart extends AbstractParallelScaler {
     private static Graphics2D createGraphicsForCopy(BufferedImage image) {
         final Graphics2D g = image.createGraphics();
         /*
-         * Needed even if source is always opaque
-         * (like for RGB to RGB).
-         * 
-         * When both src and dst are of type TYPE_INT_XXX,
-         * and both premul or both non-premul,
-         * then it only works when source origin is (0,0)
-         * (cf. check in BufferedImageHelper).
-         * 
-         * It always work for us here, since the problematic cases
-         * are ruled out at smart code generation due to not being
+         * Only reliable if no more than two
+         * of (srcX,srcY,dstX,dstY) are zero,
+         * which is not always the case here,
+         * but the problematic cases are ruled out
+         * at smart code generation due to not being
          * accurate.
          */
         g.setComposite(AlphaComposite.Src);

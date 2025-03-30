@@ -97,15 +97,24 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
         @Override
         public void run() {
             try {
-                scaleImagePart(
-                    this.cmn.srcHelper.duplicate(),
+                scaleImageChunk(
+                    duplicateOrSame(this.cmn.srcHelper),
                     this.dstStartRow,
                     this.dstEndRow,
-                    this.cmn.dstHelper.duplicate(),
+                    duplicateOrSame(this.cmn.dstHelper),
                     this.cmn.runData);
             } finally {
                 this.cmn.latch.countDown();
             }
+        }
+        private BufferedImageHelper duplicateOrSame(BufferedImageHelper helper) {
+            final BufferedImageHelper ret;
+            if (mustDuplicateHelpersForChunks) {
+                ret = helper.duplicate();
+            } else {
+                ret = helper;
+            }
+            return ret;
         }
     }
     
@@ -115,11 +124,26 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
     
     private static final int CORE_COUNT = Runtime.getRuntime().availableProcessors();
     
+    private final boolean mustDuplicateHelpersForChunks;
+    
     //--------------------------------------------------------------------------
     // CONSTRUCTORS
     //--------------------------------------------------------------------------
     
+    /**
+     * Uses true for mustDuplicateHelpersForChunks.
+     */
     protected AbstractParallelScaler() {
+        this(true);
+    }
+    
+    /**
+     * @param mustDuplicateHelpersForChunks Can be set to false if not using
+     *        helpers non-thread-safe methods in scaleImageChunk(),
+     *        to avoid useless calls to BufferedImageHelper.duplicate().
+     */
+    protected AbstractParallelScaler(boolean mustDuplicateHelpersForChunks) {
+        this.mustDuplicateHelpersForChunks = mustDuplicateHelpersForChunks;
     }
     
     //--------------------------------------------------------------------------
@@ -151,7 +175,7 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
          */
         
         // 1 when going sequential, 2 or more when going parallel.
-        final int partCount;
+        final int chunkCount;
         if (parallelExecutor != null) {
             final int srcAreaThreshold = this.getSrcAreaThresholdForSplit();
             final int dstAreaThreshold = this.getDstAreaThresholdForSplit();
@@ -162,21 +186,21 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
             final int srcArea = sw * sh;
             final int dstArea = dw * dh;
             
-            final int partCountDueToSrc =
+            final int chunkCountDueToSrc =
                 JisUtils.toRange(1, dh,
                     (int) Math.ceil((srcArea + 1) / (double) srcAreaThreshold));
-            final int partCountDueToDst =
+            final int chunkCountDueToDst =
                 JisUtils.toRange(1, dh,
                     (int) Math.ceil((dstArea + 1) / (double) dstAreaThreshold));
-            final int theoreticalPartCount = Math.max(partCountDueToSrc, partCountDueToDst);
+            final int theoreticalChunkCount = Math.max(chunkCountDueToSrc, chunkCountDueToDst);
             
-            final int maxPartCount = CORE_COUNT * MAX_RUNNABLE_COUNT_PER_CORE;
-            partCount = Math.min(maxPartCount, theoreticalPartCount);
+            final int maxChunkCount = CORE_COUNT * MAX_RUNNABLE_COUNT_PER_CORE;
+            chunkCount = Math.min(maxChunkCount, theoreticalChunkCount);
         } else {
-            partCount = 1;
+            chunkCount = 1;
         }
         
-        final boolean prlElseSeq = (partCount >= 2);
+        final boolean prlElseSeq = (chunkCount >= 2);
         final Object runData = this.computeImplData(
             srcHelper,
             dstHelper,
@@ -185,7 +209,7 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
         
         if (prlElseSeq) {
             parallelScale(
-                partCount,
+                chunkCount,
                 srcHelper,
                 dstHelper,
                 parallelExecutor,
@@ -193,7 +217,7 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
         } else {
             final int dstYStart = 0;
             final int dstYEnd = dh - 1;
-            this.scaleImagePart(
+            this.scaleImageChunk(
                 srcHelper,
                 //
                 dstYStart,
@@ -236,7 +260,7 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
      * Called on each call to scaleImage(), with its arguments.
      * 
      * @param prlElseSeq True if going parallel, false otherwise.
-     * @return Object to give to scaleImagePart() calls.
+     * @return Object to give to scaleImageChunk() calls.
      */
     protected Object computeImplData(
         @SuppressWarnings("unused")
@@ -256,9 +280,9 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
      * @param dstHelper Destination image helper.
      * @param runData Data (anything, up to the scaler implementation)
      *        that can be given by each scaleImage() call
-     *        to corresponding scaleImagePart() calls. 
+     *        to corresponding scaleImageChunk() calls. 
      */
-    protected abstract void scaleImagePart(
+    protected abstract void scaleImageChunk(
         BufferedImageHelper srcHelper,
         //
         int dstYStart,
@@ -273,11 +297,12 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
     
     /**
      * Called in case of parallel scaling.
-     * @param partCount Always >= 2.
+     * 
+     * @param chunkCount Always >= 2.
      * @param parallelExecutor Never null.
      */
     protected void parallelScale(
-        int partCount,
+        int chunkCount,
         BufferedImageHelper srcHelper,
         BufferedImageHelper dstHelper,
         Executor parallelExecutor,
@@ -285,10 +310,10 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
         
         final int dh = dstHelper.getHeight();
         
-        final Runnable[] runnableArr = new Runnable[partCount];
+        final Runnable[] runnableArr = new Runnable[chunkCount];
         
         final CountDownLatch latch =
-            new CountDownLatch(partCount);
+            new CountDownLatch(chunkCount);
         
         final MyCmnData cmn =
             new MyCmnData(
@@ -297,12 +322,12 @@ public abstract class AbstractParallelScaler implements InterfaceScaler {
                 runData,
                 latch);
         
-        final double partHeightFp = dh / (double) partCount;
+        final double chunkHeightFp = dh / (double) chunkCount;
         
         int prevDstEndRowIndex = -1;
-        for (int i = 0; i < partCount; i++) {
+        for (int i = 0; i < chunkCount; i++) {
             final int dstStartRowIndex = prevDstEndRowIndex + 1;
-            final double dstEndRowIndexFp = partHeightFp * i + (partHeightFp - 1.0);
+            final double dstEndRowIndexFp = chunkHeightFp * i + (chunkHeightFp - 1.0);
             final int dstEndRowIndex = (int) (dstEndRowIndexFp + 0.5);
             runnableArr[i] = new MyPrlRunnable(
                 cmn,

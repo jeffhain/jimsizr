@@ -62,16 +62,6 @@ public class TestResizerWithScaler implements InterfaceTestResizer {
     }
     
     /**
-     * Must override if is iterative.
-     * 
-     * @return false
-     */
-    @Override
-    public boolean isIterative() {
-        return false;
-    }
-    
-    /**
      * Must override if is not parallel capable.
      * 
      * @return true

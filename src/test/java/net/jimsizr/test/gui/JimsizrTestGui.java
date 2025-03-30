@@ -72,6 +72,7 @@ import net.jimsizr.test.utils.TestImageTypeEnum;
 import net.jimsizr.utils.Argb32;
 import net.jimsizr.utils.BihTestUtils;
 import net.jimsizr.utils.BufferedImageHelper;
+import net.jimsizr.utils.JisColorUtils;
 
 /**
  * GUI for exploratory testing/benching of resizing algos.
@@ -104,6 +105,8 @@ public class JimsizrTestGui {
     private static final boolean MUST_RESIZE_IN_BG_THREAD = true;
     
     private static final boolean MUST_TEST_INTERNAL_SCALERS = false;
+    
+    private static final int ALPHA_BG_PERIOD = 100;
     
     /*
      * Default resize configuration.
@@ -369,6 +372,11 @@ public class JimsizrTestGui {
     private final MyBgState bgState = new MyBgState();
     
     private BufferedImage currentDstImage;
+    
+    /**
+     * To observe non-opaque alpha transparency effect.
+     */
+    private BufferedImage bgBiForAlphaImage = null;
     
     /*
      * GUI
@@ -982,6 +990,16 @@ public class JimsizrTestGui {
             return;
         }
         
+        {
+            final String imagePath =
+                (String) this.refImageNameComboBox.getSelectedItem();
+            if (imagePath.contains("alpha")) {
+                final BufferedImage bg =
+                    this.getOrCreateBgBiForAlphaImage_edt(dstImage);
+                g.drawImage(bg, 0, 0, null);
+            }
+        }
+        
         final long t1Ns = System.nanoTime();
         g.drawImage(dstImage, 0, 0, null);
         final long t2Ns = System.nanoTime();
@@ -996,6 +1014,41 @@ public class JimsizrTestGui {
         } else {
             this.ensureResizeScheduled_edt(delayedScheduleType);
         }
+    }
+    
+    private BufferedImage getOrCreateBgBiForAlphaImage_edt(
+        BufferedImage dstImage) {
+        BufferedImage bg = this.bgBiForAlphaImage;
+        if ((bg == null)
+            // Keeping BG larger for fluent resizes.
+            || (bg.getWidth() < 1.5 * dstImage.getWidth())
+            || (bg.getHeight() < 1.5 * dstImage.getHeight())) {
+            final int bgw = 2 * dstImage.getWidth();
+            final int bgh = 2 * dstImage.getHeight();
+            bg = new BufferedImage(
+                bgw,
+                bgh,
+                BufferedImage.TYPE_INT_ARGB_PRE);
+            final BufferedImageHelper bgHelper =
+                new BufferedImageHelper(bg);
+            final Graphics bgg = bg.createGraphics();
+            try {
+                final int period = ALPHA_BG_PERIOD;
+                for (int y = 0; y < bgh; y++) {
+                    for (int x = 0; x < bgw; x++) {
+                        final int coord = (x % period + y % period) / 2;
+                        final int cpt8 = (int) (255 * (coord / (double) (period - 1)) + 0.5);
+                        final int argb32 =
+                            JisColorUtils.toAbcd32_noCheck(0xFF, cpt8, cpt8, cpt8);
+                        bgHelper.setNonPremulArgb32At(x, y, argb32);
+                    }
+                }
+            } finally {
+                bgg.dispose();
+            }
+            this.bgBiForAlphaImage = bg;
+        }
+        return bg;
     }
     
     /*

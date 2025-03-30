@@ -124,13 +124,6 @@ public class TestResizerWithScalingType implements InterfaceTestResizer {
     }
     
     @Override
-    public boolean isIterative() {
-        // Second one doesn't count.
-        return (this.scalingType1 == ScalingType.ITERATIVE_BILINEAR)
-            || (this.scalingType1 == ScalingType.ITERATIVE_BICUBIC);
-    }
-    
-    @Override
     public boolean isParallelCapable() {
         return true;
     }

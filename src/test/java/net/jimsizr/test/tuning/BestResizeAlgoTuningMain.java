@@ -516,7 +516,7 @@ public class BestResizeAlgoTuningMain extends BaseBestAlgoTuning {
                         final int neighborDelta =
                             getNeighborDelta(scenario.getAlgoType());
                         final int maxCptDelta =
-                            BihTestUtils.computeMaxCptDelta(
+                            JisTestUtils.computeMaxCptDelta(
                                 expHelper,
                                 dstHelper,
                                 neighborDelta);

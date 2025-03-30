@@ -40,7 +40,8 @@ public class JimsizrTest extends TestCase {
     //--------------------------------------------------------------------------
     
     private static final boolean DEBUG = false;
-    private static final boolean MUST_PRINT_IMAGE_ON_ERROR = false;
+    private static final boolean MUST_PRINT_IMAGE_ON_ERROR =
+        BihTestUtils.MUST_PRINT_IMAGE_ON_ERROR;
     
     /**
      * True to compute tolerated deltas to copy in JimsizrTestGen,
@@ -50,6 +51,25 @@ public class JimsizrTest extends TestCase {
      * as fake parallelism).
      */
     private static final boolean MAX_DELTA_COMPUTATION_MODE = false;
+    
+    /**
+     * Should be large enough to cover various pixel cases,
+     * and trigger eventual issues (some won't show up if too small).
+     * 
+     * With growths to x4 for each span, (64,32) gives
+     * (256,128) destination images, i.e. images with 32 * 1024 pixels,
+     * which should be enough to pass most thresholds.
+     * In case it's not enough, we also use small thresholds
+     * for tested implementations.
+     */
+    private static final int SRC_IMAGE_MAX_WIDTH = 64;
+    private static final int SRC_IMAGE_MAX_HEIGHT = 32;
+    
+    /**
+     * The larger the slower,
+     * but also the more random cases covered.
+     */
+    private static final int RANDOM_RESIZE_COUNT = 10;
     
     /**
      * When MAX_DELTA_COMPUTATION_MODE is true,
@@ -84,19 +104,6 @@ public class JimsizrTest extends TestCase {
         }
         return checkNeighborDelta;
     }
-    
-    /**
-     * Should be large enough to cover various pixel cases,
-     * and trigger eventual issues (some won't show up if too small).
-     * 
-     * With growths to x4 for each span, (64,32) gives
-     * (256,128) destination images, i.e. images with 32 * 1024 pixels,
-     * which should be enough to pass most thresholds.
-     * In case it's not enough, we also use small thresholds
-     * for tested implementations.
-     */
-    private static final int SRC_IMAGE_MAX_WIDTH = 64;
-    private static final int SRC_IMAGE_MAX_HEIGHT = 32;
     
     /**
      * Only using JIS (our accuracy reference) allows to observe
@@ -155,8 +162,11 @@ public class JimsizrTest extends TestCase {
             sb.append("copy");
         } else if (opType == MyOpType.RANDOM_NON_UNIFORM) {
             sb.append("resz-nonUni");
-        } else {
+        } else if ((opType == MyOpType.RANDOM_UNIFORM_UP)
+            || (opType == MyOpType.POWERS_OF_TWO)) {
             sb.append("resz-uni");
+        } else {
+            throw new IllegalArgumentException("" + opType);
         }
         
         sb.append("-");
@@ -365,8 +375,6 @@ public class JimsizrTest extends TestCase {
      */
     private static final double MAX_GROWTH = 2.4;
     
-    private static final int RANDOM_RESIZE_COUNT = 10;
-    
     /*
      * 
      */
@@ -379,7 +387,7 @@ public class JimsizrTest extends TestCase {
     
     /**
      * Not too small else color can be altered a lot
-     * due to resizing operating in alpha-premultiplied color format.
+     * due to operating in alpha-premultiplied color format.
      */
     private static final int MIN_TRANSLUCENT_ALPHA8 = 0xF0;
     
@@ -422,7 +430,7 @@ public class JimsizrTest extends TestCase {
     //--------------------------------------------------------------------------
     
     /**
-     * Initial resize type.
+     * Initial copy/resize type.
      */
     private enum MyOpType {
         /**
@@ -447,8 +455,25 @@ public class JimsizrTest extends TestCase {
     }
     
     private enum MyCmpType {
+        /**
+         * Test against same implementation but without split.
+         * 
+         * This allows to test that splitting doesn't add much delta.
+         */
         WITH_NO_SPLIT,
+        /**
+         * Test against a reference implementation.
+         */
         WITH_REF,
+        /**
+         * Test that inverse resizing, by resizing and then
+         * resizing back to initial spans, is close to identity.
+         * 
+         * This allows to test somewhat accurate scaling
+         * in a generic way, both for growth and shrinking
+         * (assuming the chance for a bug in both cancelling itself
+         * being low).
+         */
         WITH_BACK,
     }
     
@@ -735,8 +760,6 @@ public class JimsizrTest extends TestCase {
         Boolean prlTrueElseFake,
         Executor parallelExecutor) {
         
-        final Random random = BihTestUtils.newRandom();
-        
         for (Map.Entry<InterfaceTestResizer,InterfaceTestResizer> entry :
             newRefResizerByTestedResizer().entrySet()) {
             final InterfaceTestResizer resizer = entry.getKey();
@@ -754,6 +777,12 @@ public class JimsizrTest extends TestCase {
                  */
                 continue;
             }
+            
+            /*
+             * Same random for same tests for each resizer,
+             * for fairness and not have unexpected failures.
+             */
+            final Random random = BihTestUtils.newRandom();
             
             for (TestImageTypeEnum srcImageTypeEnum : IMAGE_TYPE_ENUM_LIST) {
                 final int srcWidth =
@@ -778,10 +807,11 @@ public class JimsizrTest extends TestCase {
                     
                     final int myResizeCount;
                     if (opType == MyOpType.COPY) {
-                        // Just need that.
+                        // Don't gain much by doing more.
                         myResizeCount = 1;
                     } else if (opType == MyOpType.POWERS_OF_TWO) {
-                        // Need just that.
+                        // Just 4 to cover each span x4,
+                        // not more else too slow.
                         myResizeCount = 4;
                     } else {
                         myResizeCount = RANDOM_RESIZE_COUNT;
@@ -805,11 +835,12 @@ public class JimsizrTest extends TestCase {
                                 dstHeight = newGrownSpan(random, srcHeight);
                             }
                         } else if (opType == MyOpType.POWERS_OF_TWO) {
-                            // Covering all x2/x4 cases with rk in 0..3
+                            // Covering all x2/x4 cases with rkm4 in 0..3
                             // (x4 makes test slow, so better not do it
                             // over and over).
-                            dstWidth = (srcWidth << (1 << (rk/2)));
-                            dstHeight = (srcHeight << (1 << (rk%2)));
+                            final int rkm4 = rk % 4;
+                            dstWidth = (srcWidth << (1 << (rkm4 / 2)));
+                            dstHeight = (srcHeight << (1 << (rkm4 % 2)));
                         } else {
                             throw new AssertionError();
                         }
@@ -849,14 +880,17 @@ public class JimsizrTest extends TestCase {
                             opType,
                             cmpType,
                             prlTrueElseFake,
+                            parallelExecutor,
+                            //
+                            random,
+                            //
                             resizer,
                             refResizer,
                             srcImageTypeEnum,
                             srcImage,
                             dstImageTypeEnum,
                             dstWidth,
-                            dstHeight,
-                            parallelExecutor);
+                            dstHeight);
                     }
                 }
             }
@@ -923,19 +957,13 @@ public class JimsizrTest extends TestCase {
      * 
      */
     
-    /**
-     * Tests that resizing and then resizing back to initial spans
-     * is close to identity.
-     * 
-     * This allows to test somewhat accurate scaling
-     * in a generic way, both for growth and shrinking
-     * (assuming the chance for a bug in both cancelling itself
-     * being low).
-     */
     private void test_yyy(
         MyOpType opType,
         MyCmpType cmpType,
         Boolean prlTrueElseFake,
+        Executor parallelExecutor,
+        //
+        Random random,
         //
         InterfaceTestResizer resizer,
         InterfaceTestResizer refResizer,
@@ -943,8 +971,7 @@ public class JimsizrTest extends TestCase {
         final BufferedImage srcImage,
         TestImageTypeEnum dstImageTypeEnum,
         int dstWidth,
-        int dstHeight,
-        Executor parallelExecutor) {
+        int dstHeight) {
         
         final int srcWidth = srcImage.getWidth();
         final int srcHeight = srcImage.getHeight();
@@ -967,16 +994,6 @@ public class JimsizrTest extends TestCase {
         } else {
             throw new IllegalArgumentException("" + cmpType);
         }
-        
-        /*
-         * Always the same output when possible,
-         * to be fair between resizers and use cases.
-         * For example, allows not to have max delta
-         * larger for sequential than parallel,
-         * while only parallelism might degrade quality
-         * due to images splits that would not be well managed.
-         */
-        final Random randomForOutput = BihTestUtils.newRandom();
         
         /*
          * Resizing.
@@ -1003,7 +1020,7 @@ public class JimsizrTest extends TestCase {
                 : new BufferedImageHelper(cmpImage);
         // Randomizing output, must be erased by resize.
         BihTestUtils.randomizeHelper(
-            randomForOutput,
+            random,
             dstHelper,
             false);
         if (cmpResizer != null) {
@@ -1073,7 +1090,7 @@ public class JimsizrTest extends TestCase {
                 new BufferedImageHelper(backImage);
             // Randomizing output, must be erased by resize.
             BihTestUtils.randomizeHelper(
-                randomForOutput,
+                random,
                 backHelper,
                 false);
             //
@@ -1116,7 +1133,7 @@ public class JimsizrTest extends TestCase {
         final BufferedImageHelper actHelper = new BufferedImageHelper(actImage);
         
         final int maxCptDelta =
-            BihTestUtils.computeMaxCptDelta(
+            JisTestUtils.computeMaxCptDelta(
                 expHelper,
                 actHelper,
                 checkNeighborDelta);
