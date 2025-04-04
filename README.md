@@ -1,4 +1,4 @@
-Jimsizr stands for Java Image Sizer (JIS for short).
+Jimsizr stands for Java Image reSizer (JIS for short).
 
 Jimsizr provides an API to convert between BufferedImage objects,
 doing both type conversion and resizing as needed, possibly in parallel.
